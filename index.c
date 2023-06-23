@@ -72,6 +72,9 @@ const char * stringifyGenreEnum(int value) {
 float getAvgRating(char * title, char * author) {
 	float counter = 0;
 	float allRatings = 0;
+	int numPosts = 0;
+ 	loadPostsFromFile(communityPosts, &numPosts);
+
 	for(int i = 0; i < sizeof(communityPosts)/sizeof(struct communityPost); i++) {
 		if(strcmp(communityPosts[i].book.title, title) == 0 && strcmp(communityPosts[i].book.author, author) == 0 && communityPosts[i].rating) {
 			counter++;
@@ -87,7 +90,10 @@ float getAvgRating(char * title, char * author) {
 }
 
 int doesBookExist(char * title, char * author) {
-	for(int i = 0; i < sizeof(books)/sizeof(struct Book); i++) {
+	int numBooks = 0;
+	loadBooksFromFile(books, &numBooks);
+
+	for(int i = 0; i < numBooks; i++) {
 		if(strcmp(title, books[i].title) == 0 && strcmp(author, books[i].author) == 0) {
 			return i;
 		}
@@ -116,9 +122,14 @@ void truncateString(char * input, char * output, int maxLen) {
 }
 
 void addBookAvgRating() {
-	for(int i = 0; i < sizeof(books)/sizeof(struct Book); i++) {
+	int numBooks = 0;
+	loadBooksFromFile(books, &numBooks);
+
+	for(int i = 0; i < numBooks; i++) {
 		books[i].avgRating = getAvgRating(books[i].title, books[i].author);
 	}
+
+	saveBooksToFile(books, numBooks);
 }
 
 int genreSelection() {
@@ -146,6 +157,8 @@ int genreSelection() {
 int actionSelection(struct communityPost *post, int userId) {
     char ch;
     int a;
+    int numUsers = 0;
+    loadUsersFromFile(users, &numUsers);
 
 	printf("\n[\033[36m1\033[0m] You started reading \033[36m%s\033[0m.\n", post->book.title);
     printf("[\033[36m2\033[0m] You gave up on \033[36m%s\033[0m.\n", post->book.title);
@@ -166,12 +179,12 @@ int actionSelection(struct communityPost *post, int userId) {
             post->action = DNFed;
             post->user.dnf++;
             users[userId].dnf++;
-            break;
+			break;
         case 3:
             post->action = finished;
             post->user.booksRead++;
             users[userId].booksRead++;
-            break;
+			break;
         case 4:
             post->action = addedToTbr;
             post->user.tbr++;
@@ -184,6 +197,8 @@ int actionSelection(struct communityPost *post, int userId) {
             getch();
             break;
     }
+
+    saveUsersToFile(users, numUsers); // Update the user's file
 
     return a;
 }
@@ -233,6 +248,41 @@ void loadPostsFromFile(struct communityPost posts[], int *numPosts) {
     fclose(file);
 }
 
+void saveBooksToFile(struct Book books[], int numBooks) {
+    FILE *file = fopen("books.txt", "w");
+    if (file == NULL) {
+        printf("Error opening file for writing.\n");
+        return;
+    }
+
+    for (int i = 0; i < numBooks; i++) {
+        fprintf(file, "%s,%s,%d,%d/%d/%d,%d,%.2f,%d\n",
+			books[i].title, books[i].author, (int)books[i].genre, books[i].pubDate.day, books[i].pubDate.month, books[i].pubDate.year,
+			books[i].pageNum, books[i].avgRating, books[i].shelved);
+    }
+
+    fclose(file);
+}
+
+void loadBooksFromFile(struct Book books[], int *numBooks) {
+    FILE *file = fopen("books.txt", "r");
+    if (file == NULL) {
+        printf("Error opening file for reading.\n");
+        return;
+    }
+
+    *numBooks = 0;
+    while (fscanf(file, "%[^,],%[^,],%d,%d/%d/%d,%d,%.2f,%d\n",
+				  books[*numBooks].title, books[*numBooks].author, &books[*numBooks].genre,
+                  &books[*numBooks].pubDate.day, &books[*numBooks].pubDate.month, &books[*numBooks].pubDate.year,
+				  &books[*numBooks].pageNum, &books[*numBooks].avgRating, &books[*numBooks].shelved) != EOF) {
+        (*numBooks)++;
+    }
+
+    fclose(file);
+}
+
+
 void addEntry(int id) {
 	time_t current_time;
     struct tm* time_info;
@@ -240,8 +290,10 @@ void addEntry(int id) {
 	int x, y, g;
 	int rating;
 	int numPosts = 0;
+	int numBooks = 0;
 
 	loadPostsFromFile(communityPosts, &numPosts);
+	loadBooksFromFile(books, &numBooks);
 
 	for(int i = 0; i < sizeof(communityPosts)/sizeof(struct communityPost); i++) {
 		if (strcmp(communityPosts[i].user.username, "") == 0) {
@@ -292,8 +344,9 @@ void addEntry(int id) {
 			if(doesBookExist(communityPosts[i].book.title, communityPosts[i].book.author) != -1) {
 				books[doesBookExist(communityPosts[i].book.title, communityPosts[i].book.author)].shelved++;
 				communityPosts[i].book = books[doesBookExist(communityPosts[i].book.title, communityPosts[i].book.author)];
+				saveBooksToFile(books, numBooks);
 			} else {
-				g = genreSelection();
+   				g = genreSelection();
 
     			switch(g) {
 					case 1:
@@ -354,13 +407,15 @@ void addEntry(int id) {
 				communityPosts[i].book.pubDate.month = month;
 				communityPosts[i].book.pubDate.year = year;
 
-				for(int k = 0; k < sizeof(books)/sizeof(struct Book); k++) {
+				for(int k = 0; k <= numBooks; k++) {
 					if(strcmp(books[k].title, "") == 0) {
 						books[k] = communityPosts[i].book;
 						books[k].shelved = 1;
 						break;
 					}
 				}
+				numBooks++;
+    			saveBooksToFile(books, numBooks);
 			}
 
 			x = actionSelection(&communityPosts[i], id);
@@ -402,7 +457,6 @@ void addEntry(int id) {
 			addBookAvgRating();
 
 			numPosts++;
-            // Save the posts to file
         	saveCommunityPostsToFile(communityPosts, numPosts);
 
 			setColor(11); // cyan
@@ -587,8 +641,11 @@ void displayAllBooks(id) {
 	int i = 0;
 	int startX = 2;
     int startY = 2;
+    int numBooks = 0;
 
     int maxColWidth = 18;
+
+    loadBooksFromFile(books, &numBooks);
 
     // Print table headers
     gotoxy(startX, startY);
@@ -741,8 +798,11 @@ void displayAllBooks(id) {
 void displayBooksByGenre(id) {
 	int genre;
 	int booksFound = 0;
+	int numBooks = 0;
 
 	genre = genreSelection();
+
+	loadBooksFromFile(books, &numBooks);
 
 	for(int i = 0; i < sizeof(books)/sizeof(struct Book); i++) {
 		if(books[i].genre == genre - 1 && strcmp(books[i].title, "") != 0) {
@@ -777,6 +837,10 @@ void displayBooksByGenre(id) {
 void highestAndLowestRatedBook(userId) {
 	int startX = 2;
 	int startY = 2;
+	int numBooks = 0;
+
+	loadBooksFromFile(books, &numBooks);
+
 	struct Book highestRated = books[0];
 	struct Book lowestRated = books[0];
 	for(int i = 0; i < sizeof(books)/sizeof(struct Book); i++) {
@@ -869,6 +933,9 @@ void highestAndLowestRatedBook(userId) {
 void mostAndLeastPopular(userId) {
 	int startX = 2;
 	int startY = 2;
+	int numBooks = 0;
+	loadBooksFromFile(books, &numBooks);
+
 	struct Book mostPopular = books[0];
 	struct Book leastPopular = books[0];
 	for(int i = 0; i < sizeof(books)/sizeof(struct Book); i++) {
@@ -979,6 +1046,9 @@ void updatePost(int postId, int userId) {
     int postFound = 0; // Flag to track if a matching post is found
     struct communityPost post;
     char line[300];
+    int numUsers = 0;
+
+    loadUsersFromFile(users, &numUsers);
 
     FILE* file = fopen("community_posts.txt", "r+");
     if (file == NULL) {
@@ -1086,6 +1156,8 @@ void updatePost(int postId, int userId) {
                     post.date.year,
                     post.action,
                     post.rating);
+
+            saveUsersToFile(users, numUsers); // Update the user's file
         } else {
             // Write the unchanged post to the temporary file
             fputs(line, tempFile);
@@ -1120,6 +1192,12 @@ void updatePost(int postId, int userId) {
 
 void deletePost(int postId, int userId) {
 	int postFound = 0;
+	int numUsers = 0;
+	int numBooks = 0;
+
+	loadUsersFromFile(users, &numUsers);
+	loadBooksFromFile(books, &numBooks);
+
     FILE* file = fopen("community_posts.txt", "r");
     FILE* tempFile = fopen("temp.txt", "w");
 
@@ -1185,6 +1263,8 @@ void deletePost(int postId, int userId) {
             break; // Exit the loop once the book is deleted
 		}
 	}
+	saveBooksToFile(books, numBooks); // the books' file
+	saveUsersToFile(users, numUsers); // Update the user's file
 
 	next(currentUserID);
 }
