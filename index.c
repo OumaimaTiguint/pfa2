@@ -90,10 +90,7 @@ float getAvgRating(char * title, char * author) {
 }
 
 int doesBookExist(char * title, char * author) {
-	int numBooks = 0;
-	loadBooksFromFile(books, &numBooks);
-
-	for(int i = 0; i < numBooks; i++) {
+	for(int i = 0; i < sizeof(books)/sizeof(struct Book); i++) {
 		if(strcmp(title, books[i].title) == 0 && strcmp(author, books[i].author) == 0) {
 			return i;
 		}
@@ -121,15 +118,89 @@ void truncateString(char * input, char * output, int maxLen) {
     }
 }
 
-void addBookAvgRating() {
-	int numBooks = 0;
-	loadBooksFromFile(books, &numBooks);
+void saveCommunityPostsToFile(struct communityPost posts[], int numPosts) {
+    FILE *file = fopen("community_posts.txt", "w");
+    if (file == NULL) {
+    	setColor(12);
+        printf("Error opening file for writing.\n");
+        setColor(7);
+        return;
+    }
 
-	for(int i = 0; i < numBooks; i++) {
+    for (int i = 0; i < numPosts; i++) {
+    	fprintf(file, "%d,%d,%s,%s,%s,%d/%d/%d,%d,%d\n",
+            posts[i].id,
+            posts[i].user.id,
+            posts[i].user.username,
+            posts[i].book.title,
+            posts[i].book.author,
+            posts[i].date.day,
+            posts[i].date.month,
+            posts[i].date.year,
+            (int)posts[i].action,
+            posts[i].rating);
+    }
+
+    fclose(file);
+}
+
+void loadPostsFromFile(struct communityPost posts[], int *numPosts) {
+    FILE *file = fopen("community_posts.txt", "r");
+    if (file == NULL) {
+    	setColor(12);
+        printf("Error opening file for reading.\n");
+        setColor(7);
+        return;
+    }
+
+    *numPosts = 0;
+    while (fscanf(file, "%d,%d,%[^,],%[^,],%[^,],%d/%d/%d,%d,%d\n", &posts[*numPosts].id, &posts[*numPosts].user.id, posts[*numPosts].user.username,
+				 posts[*numPosts].book.title, posts[*numPosts].book.author, &posts[*numPosts].date.day, &posts[*numPosts].date.month,
+				 &posts[*numPosts].date.year, &posts[*numPosts].action, &posts[*numPosts].rating) != EOF) {
+        (*numPosts)++;
+    }
+
+    fclose(file);
+}
+
+void saveBooksToFile(struct Book books[], int numBooks) {
+    FILE *file = fopen("books.txt", "w");
+    if (file == NULL) {
+        printf("Error opening file for writing.\n");
+        return;
+    }
+
+    for (int i = 0; i < numBooks; i++) {
+    	fprintf(file, "%s,%s,%d,%d/%d/%d,%d,%f,%d\n",
+			books[i].title, books[i].author, (int)books[i].genre, books[i].pubDate.day, books[i].pubDate.month, books[i].pubDate.year,
+			books[i].pageNum, books[i].avgRating, books[i].shelved);
+    }
+
+    fclose(file);
+}
+
+void loadBooksFromFile(struct Book books[], int *numBooks) {
+    FILE *file = fopen("books.txt", "r");
+    if (file == NULL) {
+        printf("Error opening file for reading.\n");
+        return;
+    }
+
+    *numBooks = 0;
+    while (fscanf(file, "%[^,],%[^,],%d,%d/%d/%d,%d,%f,%d\n",
+				  books[*numBooks].title, books[*numBooks].author, &books[*numBooks].genre,
+                  &books[*numBooks].pubDate.day, &books[*numBooks].pubDate.month, &books[*numBooks].pubDate.year,
+				  &books[*numBooks].pageNum, &books[*numBooks].avgRating, &books[*numBooks].shelved) != EOF) {
+        (*numBooks)++;
+    }
+
+    fclose(file);
+}
+
+void addBookAvgRating() {
+	for(int i = 0; i < sizeof(books)/sizeof(struct Book); i++) {
 		books[i].avgRating = getAvgRating(books[i].title, books[i].author);
 	}
-
-	saveBooksToFile(books, numBooks);
 }
 
 int genreSelection() {
@@ -203,86 +274,6 @@ int actionSelection(struct communityPost *post, int userId) {
     return a;
 }
 
-void saveCommunityPostsToFile(struct communityPost posts[], int numPosts) {
-    FILE *file = fopen("community_posts.txt", "w");
-    if (file == NULL) {
-    	setColor(12);
-        printf("Error opening file for writing.\n");
-        setColor(7);
-        return;
-    }
-
-    for (int i = 0; i < numPosts; i++) {
-        fprintf(file, "%d,%d,%s,%s,%s,%d/%d/%d,%d,%d\n",
-            posts[i].id,
-            posts[i].user.id,
-            posts[i].user.username,
-            posts[i].book.title,
-            posts[i].book.author,
-            posts[i].date.day,
-            posts[i].date.month,
-            posts[i].date.year,
-            (int)posts[i].action,
-            posts[i].rating);
-    }
-
-    fclose(file);
-}
-
-void loadPostsFromFile(struct communityPost posts[], int *numPosts) {
-    FILE *file = fopen("community_posts.txt", "r");
-    if (file == NULL) {
-    	setColor(12);
-        printf("Error opening file for reading.\n");
-        setColor(7);
-        return;
-    }
-
-    *numPosts = 0;
-    while (fscanf(file, "%d,%d,%[^,],%[^,],%[^,],%d/%d/%d,%d,%d\n", &posts[*numPosts].id, &posts[*numPosts].user.id, posts[*numPosts].user.username,
-				 posts[*numPosts].book.title, posts[*numPosts].book.author, &posts[*numPosts].date.day, &posts[*numPosts].date.month,
-				 &posts[*numPosts].date.year, &posts[*numPosts].action, &posts[*numPosts].rating) != EOF) {
-        (*numPosts)++;
-    }
-
-    fclose(file);
-}
-
-void saveBooksToFile(struct Book books[], int numBooks) {
-    FILE *file = fopen("books.txt", "w");
-    if (file == NULL) {
-        printf("Error opening file for writing.\n");
-        return;
-    }
-
-    for (int i = 0; i < numBooks; i++) {
-        fprintf(file, "%s,%s,%d,%d/%d/%d,%d,%.2f,%d\n",
-			books[i].title, books[i].author, (int)books[i].genre, books[i].pubDate.day, books[i].pubDate.month, books[i].pubDate.year,
-			books[i].pageNum, books[i].avgRating, books[i].shelved);
-    }
-
-    fclose(file);
-}
-
-void loadBooksFromFile(struct Book books[], int *numBooks) {
-    FILE *file = fopen("books.txt", "r");
-    if (file == NULL) {
-        printf("Error opening file for reading.\n");
-        return;
-    }
-
-    *numBooks = 0;
-    while (fscanf(file, "%[^,],%[^,],%d,%d/%d/%d,%d,%.2f,%d\n",
-				  books[*numBooks].title, books[*numBooks].author, &books[*numBooks].genre,
-                  &books[*numBooks].pubDate.day, &books[*numBooks].pubDate.month, &books[*numBooks].pubDate.year,
-				  &books[*numBooks].pageNum, &books[*numBooks].avgRating, &books[*numBooks].shelved) != EOF) {
-        (*numBooks)++;
-    }
-
-    fclose(file);
-}
-
-
 void addEntry(int id) {
 	time_t current_time;
     struct tm* time_info;
@@ -344,7 +335,7 @@ void addEntry(int id) {
 			if(doesBookExist(communityPosts[i].book.title, communityPosts[i].book.author) != -1) {
 				books[doesBookExist(communityPosts[i].book.title, communityPosts[i].book.author)].shelved++;
 				communityPosts[i].book = books[doesBookExist(communityPosts[i].book.title, communityPosts[i].book.author)];
-				saveBooksToFile(books, numBooks);
+				//saveBooksToFile(books, numBooks);
 			} else {
    				g = genreSelection();
 
@@ -407,7 +398,7 @@ void addEntry(int id) {
 				communityPosts[i].book.pubDate.month = month;
 				communityPosts[i].book.pubDate.year = year;
 
-				for(int k = 0; k <= numBooks; k++) {
+				for(int k = 0; k < sizeof(books)/sizeof(struct Book); k++) {
 					if(strcmp(books[k].title, "") == 0) {
 						books[k] = communityPosts[i].book;
 						books[k].shelved = 1;
@@ -415,7 +406,7 @@ void addEntry(int id) {
 					}
 				}
 				numBooks++;
-    			saveBooksToFile(books, numBooks);
+    			//saveBooksToFile(books, numBooks);
 			}
 
 			x = actionSelection(&communityPosts[i], id);
@@ -458,6 +449,7 @@ void addEntry(int id) {
 
 			numPosts++;
         	saveCommunityPostsToFile(communityPosts, numPosts);
+			saveBooksToFile(books, numBooks);
 
 			setColor(11); // cyan
 			printf("New entry added successfully!\n");
